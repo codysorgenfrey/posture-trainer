@@ -6,12 +6,14 @@ class PostureStore: ObservableObject {
     @Published var reminderHour: Int = 9
     @Published var reminderMinute: Int = 0
     @Published var remindersEnabled: Bool = false
+    @Published var microCheckRemindersEnabled: Bool = false
 
     private let sessionsKey = "posture_sessions"
     private let startDateKey = "posture_start_date"
     private let reminderHourKey = "posture_reminder_hour"
     private let reminderMinuteKey = "posture_reminder_minute"
     private let remindersEnabledKey = "posture_reminders_enabled"
+    private let microCheckRemindersEnabledKey = "posture_micro_check_enabled"
 
     init() {
         load()
@@ -29,6 +31,7 @@ class PostureStore: ObservableObject {
         UserDefaults.standard.set(reminderHour, forKey: reminderHourKey)
         UserDefaults.standard.set(reminderMinute, forKey: reminderMinuteKey)
         UserDefaults.standard.set(remindersEnabled, forKey: remindersEnabledKey)
+        UserDefaults.standard.set(microCheckRemindersEnabled, forKey: microCheckRemindersEnabledKey)
     }
 
     func load() {
@@ -43,6 +46,7 @@ class PostureStore: ObservableObject {
         reminderHour = UserDefaults.standard.object(forKey: reminderHourKey) as? Int ?? 9
         reminderMinute = UserDefaults.standard.object(forKey: reminderMinuteKey) as? Int ?? 0
         remindersEnabled = UserDefaults.standard.bool(forKey: remindersEnabledKey)
+        microCheckRemindersEnabled = UserDefaults.standard.bool(forKey: microCheckRemindersEnabledKey)
     }
 
     // MARK: - Program Week

@@ -42,11 +42,15 @@ struct SettingsView: View {
                 }
 
                 Section("Micro-Check Reminders") {
-                    Button {
-                        NotificationManager.shared.scheduleMicroCheckReminders()
-                    } label: {
-                        Label("Enable Posture Check Reminders", systemImage: "bell.badge")
-                    }
+                    Toggle("Enable Posture Check Reminders", isOn: $store.microCheckRemindersEnabled)
+                        .onChange(of: store.microCheckRemindersEnabled) { _, enabled in
+                            if enabled {
+                                NotificationManager.shared.scheduleMicroCheckReminders()
+                            } else {
+                                NotificationManager.shared.cancelMicroCheckReminders()
+                            }
+                            store.save()
+                        }
 
                     Text("Sends gentle reminders at 10 AM, 2 PM, and 5 PM to check your posture.")
                         .font(.caption)

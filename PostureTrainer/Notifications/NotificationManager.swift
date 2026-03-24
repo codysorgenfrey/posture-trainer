@@ -76,6 +76,10 @@ final class NotificationManager: Sendable {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["posture-session-complete"])
     }
 
+    func cancelMicroCheckReminders() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["posture-micro-1", "posture-micro-2", "posture-micro-3"])
+    }
+
     func cancelAllReminders() {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
