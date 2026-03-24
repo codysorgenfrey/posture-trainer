@@ -1,14 +1,18 @@
+import ActivityKit
 import SwiftUI
 
 struct ActiveSessionView: View {
     @EnvironmentObject var store: PostureStore
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) var scenePhase
 
     @State private var targetMinutes: Double = 30
     @State private var isRunning = false
     @State private var elapsedSeconds: Int = 0
+    @State private var sessionStartDate: Date?
     @State private var timer: Timer?
     @State private var sessionFinished = false
+    @State private var activity: Activity<PostureSessionAttributes>?
 
     private var targetSeconds: Int { Int(targetMinutes) * 60 }
     private var remainingSeconds: Int { max(targetSeconds - elapsedSeconds, 0) }
@@ -40,6 +44,14 @@ struct ActiveSessionView: View {
             }
             .onDisappear {
                 timer?.invalidate()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active, isRunning, let start = sessionStartDate {
+                    elapsedSeconds = Int(Date().timeIntervalSince(start))
+                    if elapsedSeconds >= targetSeconds {
+                        completeSession()
+                    }
+                }
             }
         }
     }
@@ -192,9 +204,13 @@ struct ActiveSessionView: View {
     private func startSession() {
         isRunning = true
         elapsedSeconds = 0
+        let now = Date()
+        sessionStartDate = now
         scheduleCompletionNotification()
+        startLiveActivity(startDate: now)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            elapsedSeconds += 1
+            guard let start = sessionStartDate else { return }
+            elapsedSeconds = Int(Date().timeIntervalSince(start))
             if elapsedSeconds >= targetSeconds {
                 completeSession()
             }
@@ -206,6 +222,7 @@ struct ActiveSessionView: View {
         timer = nil
         isRunning = false
         sessionFinished = true
+        endLiveActivity()
         let minutes = max(elapsedSeconds / 60, 1)
         store.logSession(durationMinutes: minutes, notes: "Live session")
     }
@@ -219,11 +236,41 @@ struct ActiveSessionView: View {
         timer?.invalidate()
         timer = nil
         NotificationManager.shared.cancelSessionNotification()
+        endLiveActivity()
         isRunning = false
         dismiss()
     }
 
     private func scheduleCompletionNotification() {
         NotificationManager.shared.scheduleSessionComplete(afterSeconds: targetSeconds)
+    }
+
+    private func startLiveActivity(startDate: Date) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let endDate = startDate.addingTimeInterval(TimeInterval(targetSeconds))
+        let attributes = PostureSessionAttributes(
+            targetMinutes: Int(targetMinutes),
+            startDate: startDate,
+            endDate: endDate
+        )
+        let state = PostureSessionAttributes.ContentState()
+        let content = ActivityContent(state: state, staleDate: endDate)
+        do {
+            activity = try Activity.request(
+                attributes: attributes,
+                content: content,
+                pushType: nil
+            )
+        } catch {
+            print("Failed to start Live Activity: \(error)")
+        }
+    }
+
+    private func endLiveActivity() {
+        let currentActivity = activity
+        activity = nil
+        Task {
+            await currentActivity?.end(nil, dismissalPolicy: .immediate)
+        }
     }
 }

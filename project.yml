@@ -16,6 +16,8 @@ targets:
     platform: iOS
     sources:
       - PostureTrainer
+    dependencies:
+      - target: PostureTrainerWidgets
     settings:
       base:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
@@ -29,3 +31,33 @@ targets:
         DEVELOPMENT_ASSET_PATHS: ''
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
+  PostureTrainerWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - PostureTrainerWidgets
+      - path: PostureTrainer/Models/PostureSessionAttributes.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.codysorgenfrey.PostureTrainer.Widgets
+        INFOPLIST_KEY_CFBundleDisplayName: PostureTrainerWidgets
+        INFOPLIST_KEY_NSHumanReadableCopyright: ''
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: '1.0'
+        CURRENT_PROJECT_VERSION: '1'
+    info:
+      path: PostureTrainerWidgets/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+schemes:
+  PostureTrainer:
+    build:
+      targets:
+        PostureTrainer: all
+        PostureTrainerWidgets: all
+    run:
+      config: Debug
+    archive:
+      config: Release
