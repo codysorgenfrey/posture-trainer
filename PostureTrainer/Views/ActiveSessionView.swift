@@ -1,4 +1,4 @@
-import ActivityKit
+@preconcurrency import ActivityKit
 import SwiftUI
 
 struct ActiveSessionView: View {
@@ -77,8 +77,8 @@ struct ActiveSessionView: View {
                 .tint(.primary)
                 .padding(.horizontal)
 
-            if let phase = store.currentPhase {
-                Text("Recommended: \(phase.sessionMinutes.lowerBound)–\(phase.sessionMinutes.upperBound) min")
+            if let week = store.currentScheduleWeek {
+                Text("Recommended: \(week.minutesPerDay) min")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

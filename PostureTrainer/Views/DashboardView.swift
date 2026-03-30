@@ -13,7 +13,7 @@ struct DashboardView: View {
                     if !store.programStarted {
                         startProgramCard
                     } else {
-                        currentPhaseCard
+                        currentWeekCard
                         streakCard
                         weekProgressCard
                         quickActionsCard
@@ -45,7 +45,7 @@ struct DashboardView: View {
             Text("Welcome to Posture Trainer")
                 .font(.title2.bold())
 
-            Text("An 8-week program to improve your posture using a posture brace, with gradual progression from daily use to occasional reminders.")
+            Text("A customizable program to improve your posture using a posture brace, with gradual progression from daily use to occasional reminders.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -68,18 +68,14 @@ struct DashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
-    // MARK: - Current Phase
+    // MARK: - Current Week
 
-    private var currentPhaseCard: some View {
+    private var currentWeekCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Week \(store.currentWeek)")
-                        .font(.caption.bold())
-                        .foregroundStyle(.primary)
-
-                    if let phase = store.currentPhase {
-                        Text(phase.title)
+                    if store.currentScheduleWeek != nil {
+                        Text("Week \(store.currentWeek) of \(store.scheduleWeeks.count)")
                             .font(.title3.bold())
                     } else {
                         Text("Program Complete! 🎉")
@@ -92,23 +88,19 @@ struct DashboardView: View {
                     .foregroundStyle(.primary)
             }
 
-            if let phase = store.currentPhase {
-                Text(phase.focusDescription)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
+            if let week = store.currentScheduleWeek {
                 Divider()
 
                 HStack(spacing: 24) {
                     VStack {
-                        Text("\(phase.sessionMinutes.lowerBound)–\(phase.sessionMinutes.upperBound)")
+                        Text("\(week.minutesPerDay)")
                             .font(.headline)
-                        Text("minutes")
+                        Text("min/day")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     VStack {
-                        Text("\(phase.daysPerWeek.lowerBound)–\(phase.daysPerWeek.upperBound)")
+                        Text("\(week.daysPerWeek)")
                             .font(.headline)
                         Text("days/week")
                             .font(.caption)
@@ -160,15 +152,15 @@ struct DashboardView: View {
                 Text("This Week")
                     .font(.headline)
                 Spacer()
-                if let phase = store.currentPhase {
-                    Text("\(store.sessionsThisWeek) / \(phase.daysPerWeek.lowerBound) sessions")
+                if let week = store.currentScheduleWeek {
+                    Text("\(store.sessionsThisWeek) / \(week.daysPerWeek) sessions")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            if let phase = store.currentPhase {
-                let target = Double(phase.daysPerWeek.lowerBound)
+            if let week = store.currentScheduleWeek {
+                let target = Double(week.daysPerWeek)
                 let progress = min(Double(store.sessionsThisWeek) / max(target, 1), 1.0)
                 ProgressView(value: progress)
                     .tint(.primary)

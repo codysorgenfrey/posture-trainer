@@ -18,16 +18,20 @@ struct SessionLog: Identifiable, Codable {
     }
 }
 
-// MARK: - Schedule Phase
+// MARK: - Schedule Week
 
-struct SchedulePhase: Identifiable {
-    let id: Int
-    let title: String
-    let weekRange: ClosedRange<Int>
-    let sessionMinutes: ClosedRange<Int>
-    let daysPerWeek: ClosedRange<Int>
-    let tips: [String]
-    let focusDescription: String
+struct ScheduleWeek: Identifiable, Codable, Equatable {
+    var id: UUID
+    var weekNumber: Int
+    var daysPerWeek: Int
+    var minutesPerDay: Int
+
+    init(id: UUID = UUID(), weekNumber: Int, daysPerWeek: Int, minutesPerDay: Int) {
+        self.id = id
+        self.weekNumber = weekNumber
+        self.daysPerWeek = daysPerWeek
+        self.minutesPerDay = minutesPerDay
+    }
 }
 
 // MARK: - Streak Info

@@ -7,6 +7,7 @@ class PostureStore: ObservableObject {
     @Published var reminderMinute: Int = 0
     @Published var remindersEnabled: Bool = false
     @Published var microCheckRemindersEnabled: Bool = false
+    @Published var scheduleWeeks: [ScheduleWeek] = Schedule.defaultWeeks
 
     private let sessionsKey = "posture_sessions"
     private let startDateKey = "posture_start_date"
@@ -14,6 +15,7 @@ class PostureStore: ObservableObject {
     private let reminderMinuteKey = "posture_reminder_minute"
     private let remindersEnabledKey = "posture_reminders_enabled"
     private let microCheckRemindersEnabledKey = "posture_micro_check_enabled"
+    private let scheduleWeeksKey = "posture_schedule_weeks"
 
     init() {
         load()
@@ -32,6 +34,9 @@ class PostureStore: ObservableObject {
         UserDefaults.standard.set(reminderMinute, forKey: reminderMinuteKey)
         UserDefaults.standard.set(remindersEnabled, forKey: remindersEnabledKey)
         UserDefaults.standard.set(microCheckRemindersEnabled, forKey: microCheckRemindersEnabledKey)
+        if let data = try? JSONEncoder().encode(scheduleWeeks) {
+            UserDefaults.standard.set(data, forKey: scheduleWeeksKey)
+        }
     }
 
     func load() {
@@ -47,6 +52,10 @@ class PostureStore: ObservableObject {
         reminderMinute = UserDefaults.standard.object(forKey: reminderMinuteKey) as? Int ?? 0
         remindersEnabled = UserDefaults.standard.bool(forKey: remindersEnabledKey)
         microCheckRemindersEnabled = UserDefaults.standard.bool(forKey: microCheckRemindersEnabledKey)
+        if let data = UserDefaults.standard.data(forKey: scheduleWeeksKey),
+           let decoded = try? JSONDecoder().decode([ScheduleWeek].self, from: data) {
+            scheduleWeeks = decoded
+        }
     }
 
     // MARK: - Program Week
@@ -57,8 +66,12 @@ class PostureStore: ObservableObject {
         return max(1, (days / 7) + 1)
     }
 
-    var currentPhase: SchedulePhase? {
-        Schedule.currentPhase(forWeek: currentWeek)
+    var currentScheduleWeek: ScheduleWeek? {
+        scheduleWeeks.first { $0.weekNumber == currentWeek }
+    }
+
+    func scheduleWeek(forWeek week: Int) -> ScheduleWeek? {
+        scheduleWeeks.first { $0.weekNumber == week }
     }
 
     var programStarted: Bool {
@@ -93,7 +106,60 @@ class PostureStore: ObservableObject {
         save()
     }
 
+    // MARK: - Schedule Management
+
+    func addWeek() {
+        let nextWeekNumber = (scheduleWeeks.map(\.weekNumber).max() ?? 0) + 1
+        let newWeek = ScheduleWeek(weekNumber: nextWeekNumber, daysPerWeek: 3, minutesPerDay: 30)
+        scheduleWeeks.append(newWeek)
+        save()
+    }
+
+    func deleteWeek(_ week: ScheduleWeek) {
+        scheduleWeeks.removeAll { $0.id == week.id }
+        renumberWeeks()
+        save()
+    }
+
+    func updateWeek(_ week: ScheduleWeek) {
+        if let index = scheduleWeeks.firstIndex(where: { $0.id == week.id }) {
+            scheduleWeeks[index] = week
+            save()
+        }
+    }
+
+    func moveWeek(from source: IndexSet, to destination: Int) {
+        scheduleWeeks.move(fromOffsets: source, toOffset: destination)
+        renumberWeeks()
+        save()
+    }
+
+    func resetScheduleToDefault() {
+        scheduleWeeks = Schedule.defaultWeeks
+        save()
+    }
+
+    private func renumberWeeks() {
+        for i in scheduleWeeks.indices {
+            scheduleWeeks[i].weekNumber = i + 1
+        }
+    }
+
     // MARK: - Streak Calculation
+
+    /// Maximum allowed gap (in days) between sessions for a given date's phase.
+    /// Rest days from the schedule don't count against the streak.
+    private func maxAllowedGap(forDate date: Date) -> Int {
+        guard let start = programStartDate else { return 1 }
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: start, to: date).day ?? 0
+        let week = max(1, (days / 7) + 1)
+        if let scheduleWeek = scheduleWeek(forWeek: week) {
+            // e.g. 5 days/week → max gap 3, 3 days/week → max gap 5
+            return 7 - scheduleWeek.daysPerWeek + 1
+        }
+        return 1 // No active week: require consecutive days
+    }
 
     var streakInfo: StreakInfo {
         let calendar = Calendar.current
@@ -106,15 +172,17 @@ class PostureStore: ObservableObject {
         // Current streak
         var currentStreak = 0
         let today = calendar.startOfDay(for: Date())
+        let todayGap = maxAllowedGap(forDate: today)
 
-        // Allow today or yesterday as the start
+        // Allow the most recent session to be within the schedule's allowed gap from today
         if let first = sortedDates.first,
-           calendar.dateComponents([.day], from: first, to: today).day ?? 99 <= 1 {
+           calendar.dateComponents([.day], from: first, to: today).day ?? 99 <= todayGap {
             currentStreak = 1
             var previousDate = first
             for date in sortedDates.dropFirst() {
                 let diff = calendar.dateComponents([.day], from: date, to: previousDate).day ?? 0
-                if diff == 1 {
+                let allowedGap = maxAllowedGap(forDate: previousDate)
+                if diff <= allowedGap {
                     currentStreak += 1
                     previousDate = date
                 } else {
@@ -129,7 +197,8 @@ class PostureStore: ObservableObject {
         let ascending = sortedDates.reversed().map { $0 }
         for i in 1..<ascending.count {
             let diff = calendar.dateComponents([.day], from: ascending[i - 1], to: ascending[i]).day ?? 0
-            if diff == 1 {
+            let allowedGap = maxAllowedGap(forDate: ascending[i])
+            if diff <= allowedGap {
                 tempStreak += 1
             } else {
                 longestStreak = max(longestStreak, tempStreak)

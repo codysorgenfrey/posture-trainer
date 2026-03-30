@@ -18,11 +18,11 @@ struct LogSessionSheet: View {
                     }
                     .padding(.vertical, 4)
 
-                    if let phase = store.currentPhase {
+                    if let week = store.currentScheduleWeek {
                         HStack {
                             Image(systemName: "info.circle")
                                 .foregroundStyle(.secondary)
-                            Text("Recommended: \(phase.sessionMinutes.lowerBound)–\(phase.sessionMinutes.upperBound) min")
+                            Text("Recommended: \(week.minutesPerDay) min")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }

@@ -2,14 +2,28 @@ import SwiftUI
 
 struct ScheduleView: View {
     @EnvironmentObject var store: PostureStore
+    @State private var editingWeek: ScheduleWeek?
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(Schedule.phases) { phase in
+                ForEach(store.scheduleWeeks) { week in
                     Section {
-                        PhaseCard(phase: phase, isCurrent: store.currentPhase?.id == phase.id)
+                        WeekCard(
+                            week: week,
+                            isCurrent: store.currentWeek == week.weekNumber && store.programStarted
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { editingWeek = week }
                     }
+                }
+                .onDelete { offsets in
+                    for index in offsets {
+                        store.deleteWeek(store.scheduleWeeks[index])
+                    }
+                }
+                .onMove { source, destination in
+                    store.moveWeek(from: source, to: destination)
                 }
 
                 Section("Daily Micro-Checks") {
@@ -26,24 +40,38 @@ struct ScheduleView: View {
                 }
             }
             .navigationTitle("Schedule")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        store.addWeek()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(item: $editingWeek) { week in
+                EditWeekSheet(week: week) { updated in
+                    store.updateWeek(updated)
+                }
+            }
         }
     }
 }
 
-struct PhaseCard: View {
-    let phase: SchedulePhase
+// MARK: - Week Card
+
+struct WeekCard: View {
+    let week: ScheduleWeek
     let isCurrent: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Weeks \(phase.weekRange.lowerBound)–\(phase.weekRange.upperBound)")
-                        .font(.caption.bold())
-                        .foregroundStyle(.primary)
-                    Text(phase.title)
-                        .font(.headline)
-                }
+                Text("Week \(week.weekNumber)")
+                    .font(.headline)
                 Spacer()
                 if isCurrent {
                     Text("CURRENT")
@@ -56,34 +84,50 @@ struct PhaseCard: View {
                 }
             }
 
-            Text(phase.focusDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
             HStack(spacing: 20) {
-                Label("\(phase.sessionMinutes.lowerBound)–\(phase.sessionMinutes.upperBound) min", systemImage: "clock")
-                Label("\(phase.daysPerWeek.lowerBound)–\(phase.daysPerWeek.upperBound) days/wk", systemImage: "calendar")
+                Label("\(week.minutesPerDay) min/day", systemImage: "clock")
+                Label("\(week.daysPerWeek) days/wk", systemImage: "calendar")
             }
-            .font(.caption)
+            .font(.subheadline)
             .foregroundStyle(.secondary)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Tips")
-                    .font(.caption.bold())
-                    .foregroundStyle(.primary)
-                ForEach(phase.tips, id: \.self) { tip in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("•")
-                            .foregroundStyle(.primary)
-                        Text(tip)
-                            .font(.caption)
-                    }
-                }
-            }
         }
         .padding(.vertical, 4)
         .listRowBackground(isCurrent ? Color.primary.opacity(0.08) : nil)
+    }
+}
+
+// MARK: - Edit Week Sheet
+
+struct EditWeekSheet: View {
+    @Environment(\.dismiss) var dismiss
+    @State var week: ScheduleWeek
+    let onSave: (ScheduleWeek) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Days Per Week") {
+                    Stepper("\(week.daysPerWeek) days", value: $week.daysPerWeek, in: 1...7)
+                }
+
+                Section("Minutes Per Day") {
+                    Stepper("\(week.minutesPerDay) minutes", value: $week.minutesPerDay, in: 5...180, step: 5)
+                }
+            }
+            .navigationTitle("Week \(week.weekNumber)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(week)
+                        dismiss()
+                    }
+                    .bold()
+                }
+            }
+        }
     }
 }
