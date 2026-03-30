@@ -172,16 +172,17 @@ class PostureStore: ObservableObject {
         // Current streak
         var currentStreak = 0
         let today = calendar.startOfDay(for: Date())
-        let todayGap = maxAllowedGap(forDate: today)
 
-        // Allow the most recent session to be within the schedule's allowed gap from today
+        // Allow the most recent session to be within the schedule's allowed gap from today.
+        // Use the most recent session's week to determine the gap, so that a week transition
+        // (e.g. week 1 → week 2 with stricter frequency) doesn't break a valid streak.
         if let first = sortedDates.first,
-           calendar.dateComponents([.day], from: first, to: today).day ?? 99 <= todayGap {
+           calendar.dateComponents([.day], from: first, to: today).day ?? 99 <= maxAllowedGap(forDate: first) {
             currentStreak = 1
             var previousDate = first
             for date in sortedDates.dropFirst() {
                 let diff = calendar.dateComponents([.day], from: date, to: previousDate).day ?? 0
-                let allowedGap = maxAllowedGap(forDate: previousDate)
+                let allowedGap = maxAllowedGap(forDate: date)
                 if diff <= allowedGap {
                     currentStreak += 1
                     previousDate = date
@@ -197,7 +198,7 @@ class PostureStore: ObservableObject {
         let ascending = sortedDates.reversed().map { $0 }
         for i in 1..<ascending.count {
             let diff = calendar.dateComponents([.day], from: ascending[i - 1], to: ascending[i]).day ?? 0
-            let allowedGap = maxAllowedGap(forDate: ascending[i])
+            let allowedGap = maxAllowedGap(forDate: ascending[i - 1])
             if diff <= allowedGap {
                 tempStreak += 1
             } else {
