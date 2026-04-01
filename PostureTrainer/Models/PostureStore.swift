@@ -80,8 +80,9 @@ class PostureStore: ObservableObject {
 
     // MARK: - Session Management
 
-    func logSession(durationMinutes: Int, notes: String = "") {
+    func logSession(durationMinutes: Int, date: Date = Date(), notes: String = "") {
         let session = SessionLog(
+            date: date,
             durationMinutes: durationMinutes,
             weekNumber: max(currentWeek, 1),
             notes: notes
@@ -224,6 +225,20 @@ class PostureStore: ObservableObject {
         let calendar = Calendar.current
         let startOfWeek = calendar.dateComponents([.calendar, .yearForWeekOfYear, .weekOfYear], from: Date()).date ?? Date()
         return sessions.filter { $0.date >= startOfWeek }.count
+    }
+
+    var hasSessionToday: Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return sessions.contains { calendar.startOfDay(for: $0.date) == today }
+    }
+
+    /// Whether the user's schedule expects a session today and they haven't done one yet.
+    var isSessionDueToday: Bool {
+        guard programStarted, !hasSessionToday else { return false }
+        guard let week = currentScheduleWeek else { return false }
+        // If they still have remaining sessions to hit this week's target, it's a session day.
+        return sessionsThisWeek < week.daysPerWeek
     }
 
     func sessionsForWeek(_ week: Int) -> [SessionLog] {

@@ -4,12 +4,15 @@ struct LogSessionSheet: View {
     @EnvironmentObject var store: PostureStore
     @Environment(\.dismiss) var dismiss
     @State private var duration: Double = 30
+    @State private var sessionDate: Date = Date()
     @State private var notes: String = ""
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
+                    DatePicker("Date", selection: $sessionDate, in: ...Date(), displayedComponents: [.date])
+
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Duration: \(Int(duration)) minutes")
                             .font(.headline)
@@ -42,7 +45,7 @@ struct LogSessionSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        store.logSession(durationMinutes: Int(duration), notes: notes)
+                        store.logSession(durationMinutes: Int(duration), date: sessionDate, notes: notes)
                         dismiss()
                     }
                     .bold()
