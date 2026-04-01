@@ -10,6 +10,7 @@ settings:
     SWIFT_UPCOMING_FEATURE_CONCISE_MAGIC_FILE: YES
     SWIFT_STRICT_CONCURRENCY: minimal
     GENERATE_INFOPLIST_FILE: YES
+    DEVELOPMENT_TEAM: 7MKBA93P3M
 targets:
   PostureTrainer:
     type: application
@@ -33,7 +34,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
   PostureTrainerWidgets:
-    type: app-extension
+    type: extensionkit-extension
     platform: iOS
     sources:
       - PostureTrainerWidgets
@@ -49,8 +50,8 @@ targets:
     info:
       path: PostureTrainerWidgets/Info.plist
       properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.widgetkit-extension
 schemes:
   PostureTrainer:
     build:
