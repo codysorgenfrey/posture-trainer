@@ -4,10 +4,10 @@ import Foundation
 
 struct SessionLog: Identifiable, Codable {
     let id: UUID
-    let date: Date
-    let durationMinutes: Int
-    let weekNumber: Int
-    let notes: String
+    var date: Date
+    var durationMinutes: Int
+    var weekNumber: Int
+    var notes: String
 
     init(id: UUID = UUID(), date: Date = Date(), durationMinutes: Int, weekNumber: Int, notes: String = "") {
         self.id = id

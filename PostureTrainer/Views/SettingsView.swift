@@ -66,11 +66,10 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        HStack {
-                            Text("Current Week")
-                            Spacer()
-                            Text("\(store.currentWeek)")
-                                .foregroundStyle(.secondary)
+                        Picker("Current Week", selection: $store.currentWeek) {
+                            ForEach(store.scheduleWeeks, id: \.weekNumber) { week in
+                                Text("Week \(week.weekNumber)").tag(week.weekNumber)
+                            }
                         }
                     }
 

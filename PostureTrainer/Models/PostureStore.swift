@@ -3,6 +3,9 @@ import Foundation
 class PostureStore: ObservableObject {
     @Published var sessions: [SessionLog] = []
     @Published var programStartDate: Date?
+    @Published var currentWeek: Int = 0 {
+        didSet { save() }
+    }
     @Published var reminderHour: Int = 9
     @Published var reminderMinute: Int = 0
     @Published var remindersEnabled: Bool = false
@@ -11,11 +14,13 @@ class PostureStore: ObservableObject {
 
     private let sessionsKey = "posture_sessions"
     private let startDateKey = "posture_start_date"
+    private let currentWeekKey = "posture_current_week"
     private let reminderHourKey = "posture_reminder_hour"
     private let reminderMinuteKey = "posture_reminder_minute"
     private let remindersEnabledKey = "posture_reminders_enabled"
     private let microCheckRemindersEnabledKey = "posture_micro_check_enabled"
     private let scheduleWeeksKey = "posture_schedule_weeks"
+    private var isLoading = false
 
     init() {
         load()
@@ -24,12 +29,16 @@ class PostureStore: ObservableObject {
     // MARK: - Persistence
 
     func save() {
+        guard !isLoading else { return }
         if let data = try? JSONEncoder().encode(sessions) {
             UserDefaults.standard.set(data, forKey: sessionsKey)
         }
         if let startDate = programStartDate {
             UserDefaults.standard.set(startDate.timeIntervalSince1970, forKey: startDateKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: startDateKey)
         }
+        UserDefaults.standard.set(currentWeek, forKey: currentWeekKey)
         UserDefaults.standard.set(reminderHour, forKey: reminderHourKey)
         UserDefaults.standard.set(reminderMinute, forKey: reminderMinuteKey)
         UserDefaults.standard.set(remindersEnabled, forKey: remindersEnabledKey)
@@ -40,6 +49,8 @@ class PostureStore: ObservableObject {
     }
 
     func load() {
+        isLoading = true
+        defer { isLoading = false }
         if let data = UserDefaults.standard.data(forKey: sessionsKey),
            let decoded = try? JSONDecoder().decode([SessionLog].self, from: data) {
             sessions = decoded
@@ -47,6 +58,13 @@ class PostureStore: ObservableObject {
         let startInterval = UserDefaults.standard.double(forKey: startDateKey)
         if startInterval > 0 {
             programStartDate = Date(timeIntervalSince1970: startInterval)
+        }
+        if let storedWeek = UserDefaults.standard.object(forKey: currentWeekKey) as? Int {
+            currentWeek = storedWeek
+        } else if let start = programStartDate {
+            // Migrate from previous date-derived value.
+            let days = Calendar.current.dateComponents([.day], from: start, to: Date()).day ?? 0
+            currentWeek = max(1, (days / 7) + 1)
         }
         reminderHour = UserDefaults.standard.object(forKey: reminderHourKey) as? Int ?? 9
         reminderMinute = UserDefaults.standard.object(forKey: reminderMinuteKey) as? Int ?? 0
@@ -59,12 +77,6 @@ class PostureStore: ObservableObject {
     }
 
     // MARK: - Program Week
-
-    var currentWeek: Int {
-        guard let start = programStartDate else { return 0 }
-        let days = Calendar.current.dateComponents([.day], from: start, to: Date()).day ?? 0
-        return max(1, (days / 7) + 1)
-    }
 
     var currentScheduleWeek: ScheduleWeek? {
         scheduleWeeks.first { $0.weekNumber == currentWeek }
@@ -98,12 +110,26 @@ class PostureStore: ObservableObject {
 
     func startProgram() {
         programStartDate = Calendar.current.startOfDay(for: Date())
+        currentWeek = 1
         save()
     }
 
     func resetProgram() {
         programStartDate = nil
+        currentWeek = 0
         sessions = []
+        save()
+    }
+
+    func updateSessionWeek(_ session: SessionLog, weekNumber: Int) {
+        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        sessions[index].weekNumber = weekNumber
+        save()
+    }
+
+    func updateSession(_ session: SessionLog) {
+        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        sessions[index] = session
         save()
     }
 
@@ -148,14 +174,10 @@ class PostureStore: ObservableObject {
 
     // MARK: - Streak Calculation
 
-    /// Maximum allowed gap (in days) between sessions for a given date's phase.
+    /// Maximum allowed gap (in days) between sessions for a given session's stamped week.
     /// Rest days from the schedule don't count against the streak.
-    private func maxAllowedGap(forDate date: Date) -> Int {
-        guard let start = programStartDate else { return 1 }
-        let calendar = Calendar.current
-        let days = calendar.dateComponents([.day], from: start, to: date).day ?? 0
-        let week = max(1, (days / 7) + 1)
-        if let scheduleWeek = scheduleWeek(forWeek: week) {
+    private func maxAllowedGap(for session: SessionLog) -> Int {
+        if let scheduleWeek = scheduleWeek(forWeek: session.weekNumber) {
             // e.g. 5 days/week → max gap 3, 3 days/week → max gap 5
             return 7 - scheduleWeek.daysPerWeek + 1
         }
@@ -164,9 +186,20 @@ class PostureStore: ObservableObject {
 
     var streakInfo: StreakInfo {
         let calendar = Calendar.current
-        let sortedDates = Set(sessions.map { calendar.startOfDay(for: $0.date) }).sorted(by: >)
 
-        guard !sortedDates.isEmpty else {
+        // Pick the latest session per day to represent that day's stamped week.
+        var latestByDay: [Date: SessionLog] = [:]
+        for session in sessions {
+            let day = calendar.startOfDay(for: session.date)
+            if let existing = latestByDay[day] {
+                if session.date > existing.date { latestByDay[day] = session }
+            } else {
+                latestByDay[day] = session
+            }
+        }
+        let dayEntries = latestByDay.sorted { $0.key > $1.key } // descending by day
+
+        guard !dayEntries.isEmpty else {
             return StreakInfo(currentStreak: 0, longestStreak: 0, totalSessions: 0, totalMinutes: 0)
         }
 
@@ -177,16 +210,16 @@ class PostureStore: ObservableObject {
         // Allow the most recent session to be within the schedule's allowed gap from today.
         // Use the most recent session's week to determine the gap, so that a week transition
         // (e.g. week 1 → week 2 with stricter frequency) doesn't break a valid streak.
-        if let first = sortedDates.first,
-           calendar.dateComponents([.day], from: first, to: today).day ?? 99 <= maxAllowedGap(forDate: first) {
+        if let first = dayEntries.first,
+           calendar.dateComponents([.day], from: first.key, to: today).day ?? 99 <= maxAllowedGap(for: first.value) {
             currentStreak = 1
-            var previousDate = first
-            for date in sortedDates.dropFirst() {
-                let diff = calendar.dateComponents([.day], from: date, to: previousDate).day ?? 0
-                let allowedGap = maxAllowedGap(forDate: date)
+            var previousDate = first.key
+            for entry in dayEntries.dropFirst() {
+                let diff = calendar.dateComponents([.day], from: entry.key, to: previousDate).day ?? 0
+                let allowedGap = maxAllowedGap(for: entry.value)
                 if diff <= allowedGap {
                     currentStreak += 1
-                    previousDate = date
+                    previousDate = entry.key
                 } else {
                     break
                 }
@@ -196,10 +229,10 @@ class PostureStore: ObservableObject {
         // Longest streak
         var longestStreak = 0
         var tempStreak = 1
-        let ascending = sortedDates.reversed().map { $0 }
+        let ascending = dayEntries.reversed().map { $0 }
         for i in 1..<ascending.count {
-            let diff = calendar.dateComponents([.day], from: ascending[i - 1], to: ascending[i]).day ?? 0
-            let allowedGap = maxAllowedGap(forDate: ascending[i - 1])
+            let diff = calendar.dateComponents([.day], from: ascending[i - 1].key, to: ascending[i].key).day ?? 0
+            let allowedGap = maxAllowedGap(for: ascending[i - 1].value)
             if diff <= allowedGap {
                 tempStreak += 1
             } else {
