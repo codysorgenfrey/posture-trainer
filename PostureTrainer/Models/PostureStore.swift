@@ -50,7 +50,10 @@ class PostureStore: ObservableObject {
 
     func load() {
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            isLoading = false
+            refreshCurrentWeekIfNeeded()
+        }
         if let data = UserDefaults.standard.data(forKey: sessionsKey),
            let decoded = try? JSONDecoder().decode([SessionLog].self, from: data) {
             sessions = decoded
@@ -80,6 +83,31 @@ class PostureStore: ObservableObject {
 
     var currentScheduleWeek: ScheduleWeek? {
         scheduleWeeks.first { $0.weekNumber == currentWeek }
+    }
+
+    /// Week the user is expected to be on based on the program start date.
+    /// Returns nil if the program hasn't started.
+    var expectedWeekFromStartDate: Int? {
+        guard let start = programStartDate else { return nil }
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: start),
+            to: calendar.startOfDay(for: Date())
+        ).day ?? 0
+        return max(1, (days / 7) + 1)
+    }
+
+    /// Auto-advance `currentWeek` to match the program start date when the
+    /// calendar has rolled into a new program week (e.g. on Monday). Only
+    /// advances forward, never backward, so manual jumps ahead are preserved.
+    func refreshCurrentWeekIfNeeded() {
+        guard let expected = expectedWeekFromStartDate else { return }
+        let maxWeek = scheduleWeeks.map(\.weekNumber).max() ?? expected
+        let target = min(expected, maxWeek)
+        if target > currentWeek {
+            currentWeek = target
+        }
     }
 
     func scheduleWeek(forWeek week: Int) -> ScheduleWeek? {
@@ -174,10 +202,21 @@ class PostureStore: ObservableObject {
 
     // MARK: - Streak Calculation
 
-    /// Maximum allowed gap (in days) between sessions for a given session's stamped week.
-    /// Rest days from the schedule don't count against the streak.
-    private func maxAllowedGap(for session: SessionLog) -> Int {
-        if let scheduleWeek = scheduleWeek(forWeek: session.weekNumber) {
+    /// Maximum allowed gap (in days) between sessions, based on the schedule
+    /// week that was active on `date`. Computed from `programStartDate` so it
+    /// reflects the actual schedule on that calendar day rather than the
+    /// stamped week number on a session (which can drift if the user changes
+    /// the current week manually).
+    private func maxAllowedGap(forDate date: Date) -> Int {
+        guard let start = programStartDate else { return 1 }
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: start),
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0
+        let week = max(1, (days / 7) + 1)
+        if let scheduleWeek = scheduleWeek(forWeek: week) {
             // e.g. 5 days/week → max gap 3, 3 days/week → max gap 5
             return 7 - scheduleWeek.daysPerWeek + 1
         }
@@ -187,19 +226,10 @@ class PostureStore: ObservableObject {
     var streakInfo: StreakInfo {
         let calendar = Calendar.current
 
-        // Pick the latest session per day to represent that day's stamped week.
-        var latestByDay: [Date: SessionLog] = [:]
-        for session in sessions {
-            let day = calendar.startOfDay(for: session.date)
-            if let existing = latestByDay[day] {
-                if session.date > existing.date { latestByDay[day] = session }
-            } else {
-                latestByDay[day] = session
-            }
-        }
-        let dayEntries = latestByDay.sorted { $0.key > $1.key } // descending by day
+        // Collapse to one entry per calendar day.
+        let sortedDates = Set(sessions.map { calendar.startOfDay(for: $0.date) }).sorted(by: >)
 
-        guard !dayEntries.isEmpty else {
+        guard !sortedDates.isEmpty else {
             return StreakInfo(currentStreak: 0, longestStreak: 0, totalSessions: 0, totalMinutes: 0)
         }
 
@@ -207,19 +237,19 @@ class PostureStore: ObservableObject {
         var currentStreak = 0
         let today = calendar.startOfDay(for: Date())
 
-        // Allow the most recent session to be within the schedule's allowed gap from today.
-        // Use the most recent session's week to determine the gap, so that a week transition
-        // (e.g. week 1 → week 2 with stricter frequency) doesn't break a valid streak.
-        if let first = dayEntries.first,
-           calendar.dateComponents([.day], from: first.key, to: today).day ?? 99 <= maxAllowedGap(for: first.value) {
+        // Allow the most recent session to be within today's allowed gap.
+        // Use today's schedule week so that progressing into a stricter or
+        // more lenient week doesn't retroactively break the streak.
+        if let first = sortedDates.first,
+           calendar.dateComponents([.day], from: first, to: today).day ?? 99 <= maxAllowedGap(forDate: today) {
             currentStreak = 1
-            var previousDate = first.key
-            for entry in dayEntries.dropFirst() {
-                let diff = calendar.dateComponents([.day], from: entry.key, to: previousDate).day ?? 0
-                let allowedGap = maxAllowedGap(for: entry.value)
+            var previousDate = first
+            for date in sortedDates.dropFirst() {
+                let diff = calendar.dateComponents([.day], from: date, to: previousDate).day ?? 0
+                let allowedGap = maxAllowedGap(forDate: date)
                 if diff <= allowedGap {
                     currentStreak += 1
-                    previousDate = entry.key
+                    previousDate = date
                 } else {
                     break
                 }
@@ -229,10 +259,10 @@ class PostureStore: ObservableObject {
         // Longest streak
         var longestStreak = 0
         var tempStreak = 1
-        let ascending = dayEntries.reversed().map { $0 }
+        let ascending = sortedDates.reversed().map { $0 }
         for i in 1..<ascending.count {
-            let diff = calendar.dateComponents([.day], from: ascending[i - 1].key, to: ascending[i].key).day ?? 0
-            let allowedGap = maxAllowedGap(for: ascending[i - 1].value)
+            let diff = calendar.dateComponents([.day], from: ascending[i - 1], to: ascending[i]).day ?? 0
+            let allowedGap = maxAllowedGap(forDate: ascending[i - 1])
             if diff <= allowedGap {
                 tempStreak += 1
             } else {
