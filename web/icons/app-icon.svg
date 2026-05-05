@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Posture Trainer icon">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d8477"/>
+      <stop offset="100%" stop-color="#ea7a3b"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="#112027"/>
+  <circle cx="256" cy="144" r="44" fill="#f8f3ea"/>
+  <path d="M206 238c0-29 22-52 50-52s50 23 50 52v132c0 29-22 52-50 52s-50-23-50-52z" fill="url(#g)"/>
+  <rect x="160" y="238" width="72" height="36" rx="18" fill="#f8f3ea"/>
+  <rect x="280" y="238" width="72" height="36" rx="18" fill="#f8f3ea"/>
+</svg>

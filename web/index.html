@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Posture Trainer web app" />
+  <meta name="theme-color" content="#112027" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Posture Trainer Web</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/app-icon.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Program Companion</p>
+      <h1>Posture Trainer</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="installAppBtn" class="btn hidden">Install App</button>
+      <button id="startProgramBtn" class="btn btn-primary">Start Program</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <nav class="tabs" role="tablist" aria-label="Main sections">
+      <button class="tab is-active" data-tab="today" role="tab" aria-selected="true">Today</button>
+      <button class="tab" data-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+      <button class="tab" data-tab="history" role="tab" aria-selected="false">History</button>
+      <button class="tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+    </nav>
+
+    <section id="today" class="panel is-active" role="tabpanel">
+      <div id="todayDueCard" class="card callout hidden"></div>
+      <div class="cards two-up">
+        <article class="card">
+          <h2>Current Week</h2>
+          <p id="currentWeekLabel" class="metric">Not started</p>
+          <p id="currentWeekStats" class="muted">Start the program to see your target.</p>
+        </article>
+        <article class="card">
+          <h2>Streak</h2>
+          <div class="streak-grid">
+            <div><span id="currentStreak" class="metric">0</span><small>Current</small></div>
+            <div><span id="longestStreak" class="metric">0</span><small>Longest</small></div>
+            <div><span id="totalSessions" class="metric">0</span><small>Sessions</small></div>
+            <div><span id="totalMinutes" class="metric">0</span><small>Minutes</small></div>
+          </div>
+        </article>
+      </div>
+
+      <article class="card progress-card">
+        <h2>This Week</h2>
+        <p id="weekProgressText" class="muted">0 / 0 sessions</p>
+        <div class="progress-track"><div id="weekProgressBar" class="progress-bar"></div></div>
+      </article>
+
+      <div class="cards actions">
+        <button id="openSessionBtn" class="btn btn-primary">Start Session</button>
+        <button id="openLogBtn" class="btn">Log Past Session</button>
+        <button id="openMicroBtn" class="btn">Micro-Check</button>
+      </div>
+    </section>
+
+    <section id="schedule" class="panel" role="tabpanel">
+      <div class="card">
+        <div class="section-header">
+          <h2>Schedule</h2>
+          <div>
+            <button id="addWeekBtn" class="btn">Add Week</button>
+            <button id="resetScheduleBtn" class="btn">Reset Default</button>
+          </div>
+        </div>
+        <div id="scheduleList" class="stack"></div>
+      </div>
+      <div class="card">
+        <h2>Daily Micro-Checks</h2>
+        <ul id="microCheckList" class="micro-list"></ul>
+      </div>
+    </section>
+
+    <section id="history" class="panel" role="tabpanel">
+      <article class="card">
+        <h2>Session History</h2>
+        <div id="historyList" class="stack"></div>
+      </article>
+    </section>
+
+    <section id="settings" class="panel" role="tabpanel">
+      <article class="card settings-grid">
+        <h2>Notifications</h2>
+        <label class="switch-row">
+          <span>Enable Daily Reminder</span>
+          <input id="dailyReminderToggle" type="checkbox" />
+        </label>
+        <label class="switch-row">
+          <span>Reminder Time</span>
+          <input id="reminderTimeInput" type="time" />
+        </label>
+        <label class="switch-row">
+          <span>Enable Micro-Check Reminders</span>
+          <input id="microReminderToggle" type="checkbox" />
+        </label>
+        <p class="muted">Micro-check reminders target 10:00, 14:00, and 17:00 while this tab is open.</p>
+      </article>
+
+      <article class="card settings-grid">
+        <h2>Program</h2>
+        <label class="switch-row">
+          <span>Current Week</span>
+          <select id="currentWeekSelect"></select>
+        </label>
+        <button id="resetProgramBtn" class="btn btn-danger">Reset Program</button>
+      </article>
+    </section>
+  </main>
+
+  <dialog id="sessionDialog" class="modal">
+    <form method="dialog" class="modal-content">
+      <h3 id="sessionTitle">Start Session</h3>
+      <div id="sessionSetup" class="stack">
+        <label>Duration (minutes)
+          <input id="sessionDurationInput" type="number" min="5" max="180" step="5" value="30" />
+        </label>
+      </div>
+      <div id="sessionRun" class="hidden stack">
+        <p id="sessionTimer" class="timer">30:00</p>
+        <div class="progress-track"><div id="sessionProgress" class="progress-bar"></div></div>
+      </div>
+      <div id="sessionDone" class="hidden stack">
+        <p class="metric">Great work.</p>
+        <p id="sessionDoneText" class="muted"></p>
+      </div>
+      <menu>
+        <button id="sessionCancelBtn" value="cancel" class="btn">Close</button>
+        <button id="sessionStartBtn" type="button" class="btn btn-primary">Start</button>
+        <button id="sessionFinishBtn" type="button" class="btn hidden">Finish Early</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="logDialog" class="modal">
+    <form method="dialog" class="modal-content stack">
+      <h3>Log Session</h3>
+      <label>Date
+        <input id="logDateInput" type="date" />
+      </label>
+      <label>Duration (minutes)
+        <input id="logDurationInput" type="number" min="5" max="180" step="5" value="30" />
+      </label>
+      <label>Notes
+        <textarea id="logNotesInput" rows="3" placeholder="How did it feel?"></textarea>
+      </label>
+      <menu>
+        <button value="cancel" class="btn">Cancel</button>
+        <button id="saveLogBtn" type="button" class="btn btn-primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="microDialog" class="modal">
+    <form method="dialog" class="modal-content">
+      <h3>Micro-Check</h3>
+      <div id="microDialogList" class="stack"></div>
+      <menu>
+        <button value="cancel" class="btn btn-primary">Done</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="./app.js"></script>
+</body>
+</html>

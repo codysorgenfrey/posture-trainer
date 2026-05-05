@@ -1,0 +1,19 @@
+{
+  "name": "Posture Trainer",
+  "short_name": "Posture",
+  "description": "Posture training with schedule tracking, timers, and streaks.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f3ea",
+  "theme_color": "#112027",
+  "icons": [
+    {
+      "src": "./icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
