@@ -162,7 +162,7 @@ function wireEvents() {
 
   el.saveLogBtn.addEventListener("click", () => {
     const duration = clamp(Number(el.logDurationInput.value) || 30, 1, 180);
-    const date = new Date(el.logDateInput.value);
+    const date = parseInputDate(el.logDateInput.value) || new Date();
     const notes = el.logNotesInput.value.trim();
     logSession({ durationMinutes: duration, date, notes, weekNumber: Math.max(state.currentWeek, 1) });
     el.logDialog.close();
@@ -481,7 +481,7 @@ function renderHistory() {
         </label>
 
         <label>Notes
-          <input data-field="notes" type="text" value="${escapeHtml(session.notes || "")}" placeholder="How did it feel?" />
+          <input data-field="notes" type="text" placeholder="How did it feel?" />
         </label>
       </div>
 
@@ -494,12 +494,17 @@ function renderHistory() {
       deleteSession(session.id);
     });
 
+    const notesInput = row.querySelector('[data-field="notes"]');
+    if (notesInput) {
+      notesInput.value = session.notes || "";
+    }
+
     row.querySelectorAll("[data-field]").forEach((input) => {
       input.addEventListener("change", (event) => {
         const field = input.dataset.field;
         if (field === "date") {
-          const parsed = new Date(event.target.value);
-          if (!Number.isNaN(parsed.getTime())) {
+          const parsed = parseInputDate(event.target.value);
+          if (parsed) {
             updateSession(session.id, { date: parsed.toISOString() });
           }
           return;
@@ -842,6 +847,13 @@ function toInputDate(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function parseInputDate(value) {
+  if (!value) return null;
+  const parsed = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }
 
 function formatTimer(totalSeconds) {

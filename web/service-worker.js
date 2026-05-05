@@ -1,4 +1,4 @@
-const CACHE_NAME = "posture-web-cache-v1";
+const CACHE_NAME = "posture-web-cache-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -34,18 +34,40 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   event.respondWith((async () => {
-    const cached = await caches.match(event.request);
-    if (cached) return cached;
+    const sameOrigin = new URL(event.request.url).origin === self.location.origin;
 
-    try {
-      const fresh = await fetch(event.request);
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(event.request, fresh.clone());
-      return fresh;
-    } catch {
-      const fallback = await caches.match("./index.html");
-      return fallback || Response.error();
+    if (event.request.mode === "navigate") {
+      try {
+        const networkResponse = await fetch(event.request);
+        const cache = await caches.open(CACHE_NAME);
+        cache.put("./index.html", networkResponse.clone());
+        return networkResponse;
+      } catch {
+        const fallback = await caches.match("./index.html");
+        return fallback || Response.error();
+      }
     }
+
+    if (sameOrigin) {
+      const cached = await caches.match(event.request);
+      const fetchPromise = fetch(event.request)
+        .then(async (networkResponse) => {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        })
+        .catch(() => null);
+
+      if (cached) {
+        event.waitUntil(fetchPromise);
+        return cached;
+      }
+
+      const networkResponse = await fetchPromise;
+      if (networkResponse) return networkResponse;
+    }
+
+    return fetch(event.request);
   })());
 });
 
