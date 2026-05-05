@@ -253,6 +253,12 @@ textarea {
   margin-bottom: 1rem;
 }
 
+.history-edit-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
 .modal {
   width: min(420px, 92vw);
   border: none;

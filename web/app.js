@@ -444,20 +444,49 @@ function renderHistory() {
 
   sessions.forEach((session) => {
     const row = document.createElement("article");
-    row.className = "history-row card";
+    row.className = "card stack";
 
     const date = new Date(session.date);
     const dateLabel = date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    const maxWeek = Math.max(1, state.scheduleWeeks.length);
+
+    const weekOptions = Array.from({ length: maxWeek }, (_, i) => {
+      const weekNumber = i + 1;
+      const selected = weekNumber === session.weekNumber ? "selected" : "";
+      return `<option value="${weekNumber}" ${selected}>Week ${weekNumber}</option>`;
+    }).join("");
 
     row.innerHTML = `
-      <div>
-        <strong>${dateLabel}</strong>
-        <p class="muted">${session.durationMinutes} min, Week ${session.weekNumber}</p>
-        ${session.notes ? `<p>${escapeHtml(session.notes)}</p>` : ""}
+      <div class="history-row">
+        <div>
+          <strong>${dateLabel}</strong>
+          <p class="muted">${session.durationMinutes} min, Week ${session.weekNumber}</p>
+        </div>
+        <div>
+          <button class="btn btn-danger" data-action="delete">Delete</button>
+        </div>
       </div>
-      <div class="stack">
-        <button class="btn" data-action="edit">Edit</button>
-        <button class="btn btn-danger" data-action="delete">Delete</button>
+
+      <div class="history-edit-grid">
+        <label>Date
+          <input data-field="date" type="date" value="${toInputDate(date)}" />
+        </label>
+
+        <label>Duration (min)
+          <input data-field="durationMinutes" type="number" min="1" max="180" step="1" value="${session.durationMinutes}" />
+        </label>
+
+        <label>Week
+          <select data-field="weekNumber">${weekOptions}</select>
+        </label>
+
+        <label>Notes
+          <input data-field="notes" type="text" value="${escapeHtml(session.notes || "")}" placeholder="How did it feel?" />
+        </label>
+      </div>
+
+      <div>
+        ${session.notes ? `<p>${escapeHtml(session.notes)}</p>` : ""}
       </div>
     `;
 
@@ -465,18 +494,32 @@ function renderHistory() {
       deleteSession(session.id);
     });
 
-    row.querySelector('[data-action="edit"]').addEventListener("click", () => {
-      const durationRaw = window.prompt("Duration (minutes)", String(session.durationMinutes));
-      if (durationRaw === null) return;
-      const weekRaw = window.prompt("Week number", String(session.weekNumber));
-      if (weekRaw === null) return;
-      const notesRaw = window.prompt("Notes", session.notes || "");
-      if (notesRaw === null) return;
+    row.querySelectorAll("[data-field]").forEach((input) => {
+      input.addEventListener("change", (event) => {
+        const field = input.dataset.field;
+        if (field === "date") {
+          const parsed = new Date(event.target.value);
+          if (!Number.isNaN(parsed.getTime())) {
+            updateSession(session.id, { date: parsed.toISOString() });
+          }
+          return;
+        }
 
-      updateSession(session.id, {
-        durationMinutes: clamp(Number(durationRaw) || session.durationMinutes, 1, 180),
-        weekNumber: clamp(Number(weekRaw) || session.weekNumber, 1, Math.max(1, state.scheduleWeeks.length)),
-        notes: notesRaw.trim(),
+        if (field === "durationMinutes") {
+          const durationMinutes = clamp(Number(event.target.value) || session.durationMinutes, 1, 180);
+          updateSession(session.id, { durationMinutes });
+          return;
+        }
+
+        if (field === "weekNumber") {
+          const weekNumber = clamp(Number(event.target.value) || session.weekNumber, 1, maxWeek);
+          updateSession(session.id, { weekNumber });
+          return;
+        }
+
+        if (field === "notes") {
+          updateSession(session.id, { notes: event.target.value.trim() });
+        }
       });
     });
 
